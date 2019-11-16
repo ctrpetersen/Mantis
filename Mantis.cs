@@ -31,7 +31,7 @@ namespace Mantis
         internal ulong AnimeRoleID = 334669440421462017;
         internal ulong ReactionMessageID = 549988110423818240;
         internal string BotName = "Mantis";
-        internal string GameToTrack = " Factorio";
+        internal string GameToTrack = "Factorio";
         internal string Token;
         internal Timer Timer = new Timer(TimeSpan.FromMinutes(1).TotalMilliseconds);
 
@@ -76,13 +76,13 @@ namespace Mantis
             {
                 if (user.Activity != null && user.Activity.Type == ActivityType.CustomStatus && user.Activity is Game game)
                 {
-                    if (game.ToString() == GameToTrack && user.Roles.All(r => r.Id != LiveRoleID))
+                    if (game.ToString().Replace(" ", string.Empty) == GameToTrack && user.Roles.All(r => r.Id != LiveRoleID))
                     {
                         user.AddRoleAsync(Guild.GetRole(LiveRoleID));
                         Log($"Added live role to {user}");
                     }
 
-                    else if (game.ToString() != GameToTrack && user.Roles.Any(r => r.Id == LiveRoleID))
+                    else if (game.ToString().Replace(" ", string.Empty) != GameToTrack && user.Roles.Any(r => r.Id == LiveRoleID))
                     {
                         user.RemoveRoleAsync(Guild.GetRole(LiveRoleID));
                         Log($"Removed live role from {user}");
