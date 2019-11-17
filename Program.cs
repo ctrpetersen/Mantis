@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Mantis
+﻿namespace Mantis
 {
     class Program
     {

@@ -1,29 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Discord;
+using Discord.WebSocket;
+using System;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using Discord;
-using Discord.WebSocket;
 using System.Timers;
 
 namespace Mantis
 {
     class Mantis
     {
-
         //factorio
         //guild id 139677590393716737
         //live role id 441683574333112340
         //anime role id 334669440421462017
         //reaction msg id 549988110423818240
 
-        //zirrtest
+        //testing server
         //guild id 322868375774560267
         //live role id 
         //anime role id 645366358233841666
         //reaction msg id 645368798404280381
+
         internal DiscordSocketClient Client;
         internal SocketGuild Guild;
         internal ulong GuildID = 139677590393716737;
@@ -44,7 +42,9 @@ namespace Mantis
             Client = new DiscordSocketClient(new DiscordSocketConfig()
             {
                 LogLevel = LogSeverity.Debug,
-                MessageCacheSize = 100
+                MessageCacheSize = 100,
+                DefaultRetryMode = RetryMode.AlwaysRetry,
+                AlwaysDownloadUsers = true
             });
 
             await Client.LoginAsync(TokenType.Bot, Token);
@@ -54,8 +54,32 @@ namespace Mantis
             {
                 Guild = Client.GetGuild(GuildID);
 
-                Log( $"Logged in as {Client.CurrentUser.Username}#{Client.CurrentUser.Discriminator}." +
-                    $"\nServing {Client.Guilds.Count} guilds with a total of {Client.Guilds.Sum(g => g.Users.Count)} online users.");
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("                             .   ,");
+                Console.WriteLine("                              |_|");
+                Console.WriteLine("                             (/ \\)");
+                Console.WriteLine("                             |`='");
+                Console.WriteLine("                             L L    ...");
+                Console.WriteLine("                            J / ;._// |\\");
+                Console.WriteLine("                            | |\\ `|' ,;,|");
+                Console.WriteLine("                           _L L `'`'\"");
+                Console.WriteLine("       _............._...-\": j");
+                Console.WriteLine("      '.\\_\\_\\_\\_\\_\\_\\.:`_`.-:|");
+                Console.WriteLine("        `-._:_:_:_:_:_:.-.-'||.===.");
+                Console.WriteLine("                       //||'.-'::||");
+                Console.WriteLine("                      // JJ    ||||    ___");
+                Console.WriteLine("                     //   LL   ||||---' -");
+                Console.WriteLine("                     ||__.\"\"---''-|\\ __  -");
+                Console.WriteLine("              ____.--||  __  -- __  ___.---");
+                Console.WriteLine("       __.---' __  - //--  ____.---'");
+                Console.WriteLine(" __.--' __. --   - __\"_.--'");
+                Console.WriteLine("'   .--    __.----'");
+                Console.ResetColor();
+
+
+                Log($"Logged in as {Client.CurrentUser.Username}#{Client.CurrentUser.Discriminator}." +
+                    $"\nServing {Client.Guilds.Count} guilds with a total of {Client.Guilds.Sum(g => g.Users.Count)} online users." +
+                    $"\nLatency: {Client.Latency} ms");
 
                 Timer.Start();
 
@@ -70,7 +94,7 @@ namespace Mantis
 
         private void CheckUsers(object sender, ElapsedEventArgs e)
         {
-            Log("Checking users...");
+            Heartbeat();
 
             foreach (var user in Guild.Users)
             {
@@ -97,6 +121,16 @@ namespace Mantis
             }
         }
 
+        private void Heartbeat()
+        {
+            if (Client.ConnectionState != ConnectionState.Connected)
+            {
+                Log("Disconnected! Reconnecting...", LogSeverity.Critical);
+                Client.Rest.LoginAsync(TokenType.Bot, Token);
+                return;
+            }
+            Log($"Heartbeat | Latency {Client.Latency} ms");
+        }
 
         private Task AddUserToRole(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
         {
@@ -110,7 +144,7 @@ namespace Mantis
             if (reactionAuthor.Roles.Any(r => r.Id == AnimeRoleID)) return Task.CompletedTask;
 
             reactionAuthor.AddRoleAsync(Guild.GetRole(AnimeRoleID));
-            Log($"Successfully added {reactionAuthor.Username} to the anime role.");
+            Log($"Added {reactionAuthor.Username} to the anime role.");
 
             return Task.CompletedTask;
         }
@@ -127,12 +161,12 @@ namespace Mantis
             if (reactionAuthor.Roles.All(r => r.Id != AnimeRoleID)) return Task.CompletedTask;
 
             reactionAuthor.RemoveRoleAsync(Guild.GetRole(AnimeRoleID));
-            Log($"Successfully removed {reactionAuthor.Username} from the anime role.");
+            Log($"Removed {reactionAuthor.Username} from the anime role.");
 
             return Task.CompletedTask;
         }
 
-        internal static Task Log(string msg, LogSeverity severity = LogSeverity.Info, Exception exception = null)
+        internal static Task Log(string msg, LogSeverity severity = LogSeverity.Info, Exception exception = null, string source = "Mantis")
         {
             Console.ForegroundColor = severity switch
             {
@@ -146,7 +180,7 @@ namespace Mantis
             };
 
             Console.WriteLine(
-                $"{DateTime.Now} [{severity,8}] Mantis: {msg} {(exception == null ? "" : exception.ToString())}");
+                $"{DateTime.Now} [{severity,8}] {source}: {msg} {(exception == null ? "" : exception.ToString())}");
             Console.ResetColor();
             return Task.CompletedTask;
         }
