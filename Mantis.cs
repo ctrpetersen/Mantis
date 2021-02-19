@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Timers;
 
 namespace Mantis
 {
@@ -32,7 +31,7 @@ namespace Mantis
         internal string BotName = "Mantis";
         internal string GameToTrack = "Factorio";
         internal string Token;
-        internal long _workLoopIntervalTime = TimeSpan.FromMinutes(1).TotalMilliseconds;
+        internal int _workLoopIntervalTime = (int)TimeSpan.FromMinutes(1).TotalMilliseconds;
         internal CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
         internal async Task StartAsync()
@@ -44,7 +43,7 @@ namespace Mantis
                 LogLevel = LogSeverity.Debug,
                 MessageCacheSize = 100,
                 DefaultRetryMode = RetryMode.AlwaysRetry,
-                AlwaysDownloadUsers = true
+                AlwaysDownloadUsers = false
             });
 
             await Client.LoginAsync(TokenType.Bot, Token);
@@ -97,10 +96,10 @@ namespace Mantis
         private async Task WorkLoop(CancellationToken token) {
             while (!token.IsCancellationRequested) {
                 try {
-                    await Heartbeat(token);
-                    await CheckUsers(token);
+                    await Heartbeat(token).ConfigureAwait(false);
+                    await CheckUsers(token).ConfigureAwait(false);
                 } catch (Exception ex) {
-                    Log($"Work Loop encountered unhandled exception: {ex.ToString()}");
+                    await Log($"Work Loop encountered unhandled exception", LogSeverity.Critical, ex);
                 }
                 await Task.Delay(_workLoopIntervalTime, token);
             }
@@ -108,26 +107,33 @@ namespace Mantis
 
         private async Task CheckUsers(CancellationToken token)
         {
+            await Guild.DownloadUsersAsync().ConfigureAwait(false);
+            if (!Guild.HasAllMembers) {
+                await Log($"Local Guild Cache is missing users", LogSeverity.Warning);
+            }
+
             foreach (var user in Guild.Users)
             {
+                var hasLiveRole = user.Roles.Any(r => r.Id == LiveRoleID);
+
                 if (user.Activity != null && user.Activity.Type == ActivityType.CustomStatus && user.Activity is Game game)
                 {
-                    if (game.ToString().Replace(" ", string.Empty) == GameToTrack && user.Roles.All(r => r.Id != LiveRoleID))
+                    if (game.ToString().Replace(" ", string.Empty) == GameToTrack && !hasLiveRole)
                     {
-                        await user.AddRoleAsync(Guild.GetRole(LiveRoleID));
+                        await user.AddRoleAsync(Guild.GetRole(LiveRoleID), new RequestOptions(){ CancelToken = token });
                         Log($"Added live role to {user}");
                     }
 
-                    else if (game.ToString().Replace(" ", string.Empty) != GameToTrack && user.Roles.Any(r => r.Id == LiveRoleID))
+                    else if (game.ToString().Replace(" ", string.Empty) != GameToTrack && hasLiveRole)
                     {
-                        await user.RemoveRoleAsync(Guild.GetRole(LiveRoleID));
+                        await user.RemoveRoleAsync(Guild.GetRole(LiveRoleID), new RequestOptions(){ CancelToken = token });
                         Log($"Removed live role from {user}");
                     }
                 }
 
-                else if (user.Roles.Any(r => r.Id == LiveRoleID))
+                else if (hasLiveRole)
                 {
-                    await user.RemoveRoleAsync(Guild.GetRole(LiveRoleID));
+                    await user.RemoveRoleAsync(Guild.GetRole(LiveRoleID), new RequestOptions(){ CancelToken = token });
                     Log($"Removed live role from {user}");
                 }
             }
@@ -137,12 +143,12 @@ namespace Mantis
         {
             if (Client.ConnectionState != ConnectionState.Connected)
             {
-                Log("Disconnected! Reconnecting...", LogSeverity.Critical);
+                await Log("Disconnected! Reconnecting...", LogSeverity.Critical);
                 await Client.Rest.LoginAsync(TokenType.Bot, Token);
                 return;
             }
             
-            Log($"Heartbeat | Latency {Client.Latency} ms");
+            await Log($"Heartbeat | Latency {Client.Latency} ms");
         }
 
         private async Task AddUserToRole(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
@@ -169,7 +175,7 @@ namespace Mantis
 
             var reactionAuthor = Guild.GetUser(reaction.UserId);
 
-            if (reactionAuthor.Roles.All(r => r.Id != AnimeRoleID)) return Task.CompletedTask;
+            if (reactionAuthor.Roles.All(r => r.Id != AnimeRoleID)) return;
 
             await reactionAuthor.RemoveRoleAsync(Guild.GetRole(AnimeRoleID));
             Log($"Removed {reactionAuthor.Username} from the anime role.");
